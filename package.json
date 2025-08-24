@@ -1,0 +1,21 @@
+{
+  "name": "liwaywai-prototype",
+  "version": "1.0.0",
+  "description": "LiwaywAI lending platform prototype with explainable AI and digital identity",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:ml\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:ml": "cd ml-service && python3 app.py",
+    "build": "cd frontend && npm run build",
+    "seed": "cd backend && npm run seed",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": ["fintech", "lending", "explainable-ai", "digital-identity", "prototype"],
+  "license": "MIT"
+}
