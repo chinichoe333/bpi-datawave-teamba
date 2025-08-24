@@ -30,8 +30,8 @@ const Navbar = () => {
   const adminNavItems = [
     { path: '/admin', icon: BarChart3, label: 'Dashboard' },
     { path: '/admin/applications', icon: FileText, label: 'Applications' },
-    { path: '/admin/shares', icon: Share2, label: 'Shares' },
-    { path: '/admin/policy', icon: Settings, label: 'Policy' },
+    // { path: '/admin/shares', icon: Share2, label: 'Shares' },
+    // { path: '/admin/policy', icon: Settings, label: 'Policy' },
   ]
 
   const navItems = user?.role === 'admin' ? adminNavItems : borrowerNavItems

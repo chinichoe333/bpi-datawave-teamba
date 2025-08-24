@@ -17,7 +17,7 @@ import Wallet from './pages/Wallet'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminApplications from './pages/admin/AdminApplications'
 import AdminBorrowers from './pages/admin/AdminBorrowers'
-import AdminShares from './pages/admin/AdminShares'
+// import AdminShares from './pages/admin/AdminShares'
 import ClaimsViewer from './pages/ClaimsViewer'
 
 function App() {
@@ -67,7 +67,7 @@ function App() {
                   <Route path="/admin" element={<AdminDashboard />} />
                   <Route path="/admin/applications" element={<AdminApplications />} />
                   <Route path="/admin/borrowers/:id" element={<AdminBorrowers />} />
-                  <Route path="/admin/shares" element={<AdminShares />} />
+                  {/* <Route path="/admin/shares" element={<AdminShares />} /> */}
                 </>
               )}
               
