@@ -50,6 +50,27 @@ const AdminBorrowers = () => {
         <h2 className="text-xl font-semibold mb-4">{borrower.borrower.profile?.name}</h2>
         <p className="text-gray-600">{borrower.borrower.email}</p>
         
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+          <p className="text-sm text-gray-700">
+            <span className="font-medium">Gender:</span>
+            <span className="ml-2">{borrower.borrower.profile?.gender || '—'}</span>
+          </p>
+          <p className="text-sm text-gray-700">
+            <span className="font-medium">Location:</span>
+            <span className="ml-2">{
+              [
+                borrower.borrower.profile?.city,
+                borrower.borrower.profile?.province,
+                borrower.borrower.profile?.country
+              ].filter(Boolean).join(', ') || '—'
+            }</span>
+          </p>
+          <p className="text-sm text-gray-700">
+            <span className="font-medium">Occupation:</span>
+            <span className="ml-2">{borrower.borrower.profile?.occupation || '—'}</span>
+          </p>
+        </div>
+        
         {borrower.borrower.level && (
           <div className="mt-4">
             <p className="text-sm text-gray-600">Level: {borrower.borrower.level.current}</p>

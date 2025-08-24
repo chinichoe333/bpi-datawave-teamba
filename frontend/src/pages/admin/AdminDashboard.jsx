@@ -30,13 +30,25 @@ const Skeleton = ({ className = '' }) => (
   <div className={`animate-pulse rounded-md bg-gray-200 ${className}`} />
 )
 
-// --- Lightweight charts (no external libs) ---
+// Bar gradients for ranked lists
+const BAR_GRADIENTS = [
+  'from-red-600 to-red-400',
+  'from-amber-600 to-amber-400',
+  'from-emerald-600 to-emerald-400',
+  'from-sky-600 to-sky-400',
+  'from-indigo-600 to-indigo-400',
+  'from-fuchsia-600 to-fuchsia-400',
+  'from-rose-600 to-rose-400',
+  'from-teal-600 to-teal-400',
+]
+
+// --- Lightweight charts ---
 const GenderDonut = ({ female = 0, male = 0, other = 0, size = 120, stroke = 14 }) => {
   const total = Math.max(female + male + other, 0);
   const segments = [
-    { label: 'Female', value: female, color: '#B00020' }, 
-    { label: 'Male', value: male, color: '#374151' },    
-    { label: 'Other', value: other, color: '#F59E0B' }, 
+    { label: 'Female', value: female, color: '#E11D48' }, 
+    { label: 'Male', value: male, color: '#0369A1' },     
+    { label: 'Other', value: other, color: '#D97706' },  
   ].filter(s => s.value > 0);
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -71,7 +83,7 @@ const GenderDonut = ({ female = 0, male = 0, other = 0, size = 120, stroke = 14 
       </svg>
       <div className="text-sm">
         {['Female','Male','Other'].map(lbl => {
-          const color = lbl === 'Female' ? 'bg-red-600' : lbl === 'Male' ? 'bg-gray-700' : 'bg-amber-500';
+          const color = lbl === 'Female' ? 'bg-rose-600' : lbl === 'Male' ? 'bg-sky-700' : 'bg-amber-600';
           const val = lbl === 'Female' ? female : lbl === 'Male' ? male : other;
           const pct = total > 0 ? Math.round((val / total) * 100) : 0;
           return (
@@ -114,25 +126,58 @@ const AgeBarChart = ({ bands = [], height = 140 }) => {
   );
 };
 
-const RegionsBarList = ({ items = [], total = 0 }) => {
-  const max = Math.max(0, ...items.map(i => i.count || 0));
+const RegionsBarList = ({ items = [], total = 0, maxItems = 7, showOthers = true }) => {
+  // Normalize and sort
+  const norm = (Array.isArray(items) ? items : [])
+    .filter(i => i && typeof i.label === 'string')
+    .map(i => ({ label: i.label, count: Number(i.count) || 0 }))
+    .sort((a, b) => (b.count || 0) - (a.count || 0));
+
+  // Slice top N and optionally bucket the rest
+  const top = norm.slice(0, Math.max(0, maxItems));
+  const restTotal = norm.slice(maxItems).reduce((a, i) => a + (i.count || 0), 0);
+  const data = showOthers && restTotal > 0
+    ? [...top, { label: 'Others', count: restTotal, _others: true }]
+    : top;
+
+  const max = Math.max(0, ...data.map(i => i.count || 0));
+
+  if (data.length === 0) {
+    return <p className="text-xs text-gray-500">No data yet.</p>;
+  }
+
   return (
     <div>
-      {items.length === 0 ? (
-        <p className="text-xs text-gray-500">No location data yet.</p>
-      ) : items.map((loc) => {
-        const pct = total > 0 ? Math.round((loc.count || 0) / total * 100) : 0;
-        const w = max > 0 ? Math.round((loc.count || 0) / max * 100) : 0;
+      {data.map((row, idx) => {
+        const pctOfTotal = total > 0 ? Math.round(((row.count || 0) / total) * 100) : 0;
+        const w = max > 0 ? Math.round(((row.count || 0) / max) * 100) : 0;
+        const title = `${row.label} • ${row.count.toLocaleString()}${total > 0 ? ` (${pctOfTotal}%)` : ''}`;
+        const gradient = row._others ? 'from-gray-400 to-gray-300' : BAR_GRADIENTS[idx % BAR_GRADIENTS.length];
         return (
-          <div key={loc.label} className="mb-3">
+          <div key={`${row.label}-${idx}`} className="mb-3" title={title}>
             <div className="flex items-center justify-between text-sm mb-1">
-              <span className="text-gray-600">{loc.label}</span>
-              <span className="text-gray-900 font-medium">
-                {(loc.count || 0).toLocaleString()} <span className="text-gray-500 font-normal">({pct}%)</span>
-              </span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-semibold rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                  {idx + 1}
+                </span>
+                <span className={`truncate ${row._others ? 'text-gray-700 italic' : 'text-gray-700'}`}>{row.label}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-900 font-semibold whitespace-nowrap">
+                  {row.count.toLocaleString()}
+                </span>
+                {total > 0 && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-50 text-gray-700 ring-1 ring-gray-200">
+                    {pctOfTotal}%
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="w-full h-2 rounded bg-gray-100 overflow-hidden">
-              <div className="h-2 bg-gray-700" style={{ width: `${w}%` }} />
+            <div className="relative w-full h-2.5 rounded bg-gray-100/70 ring-1 ring-gray-200 overflow-hidden">
+              <div
+                className={`absolute inset-y-0 left-0 bg-gradient-to-r ${gradient} transition-all duration-500`}
+                style={{ width: `${w}%` }}
+              />
             </div>
           </div>
         );
@@ -244,14 +289,13 @@ const AdminDashboard = () => {
       { label: '45–54', count: 0 },
       { label: '55+', count: 0 },
     ],
-    locations: []
+    locations: [],
+    occupations: [],
   }
   const totalDemBorrowers = (demographics?.total ?? null) 
     ?? (metrics?.totalBorrowers ?? (Array.isArray(levelDistribution) ? levelDistribution.reduce((a, d) => a + (d?.count || 0), 0) : 0));
   const genderTotal = Object.values(demographics.gender || {}).reduce((a, n) => a + (n || 0), 0) || totalDemBorrowers || 0;
-  const topLocations = (demographics.locations || [])
-    .sort((a, b) => (b.count || 0) - (a.count || 0))
-    .slice(0, 5);
+  const topLocations = demographics.locations || [];
 
   const totalBorrowers = metrics?.totalBorrowers ?? levelDistribution.reduce((acc, d) => acc + (d?.count || 0), 0)
 
@@ -385,15 +429,15 @@ const AdminDashboard = () => {
               other={demographics.gender?.other || 0}
             />
           </div>
-          {/* Age vertical bars */}
+          {/* Occupation list */}
           <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Age</h3>
-            <AgeBarChart bands={demographics.ageBands || []} />
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Occupation</h3>
+            <RegionsBarList items={demographics.occupations || []} total={totalDemBorrowers} maxItems={7} showOthers />
           </div>
           {/* Top regions horizontal list */}
           <div>
             <h3 className="text-sm font-medium text-gray-700 mb-3">Top Regions / Provinces</h3>
-            <RegionsBarList items={topLocations} total={totalDemBorrowers} />
+            <RegionsBarList items={topLocations} total={totalDemBorrowers} maxItems={7} showOthers />
           </div>
         </div>
       </div>

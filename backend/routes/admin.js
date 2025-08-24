@@ -206,6 +206,7 @@ router.get('/borrowers/:id', async (req, res) => {
         createdAt: user.createdAt,
         profile: profile ? {
           name: profile.name,
+          gender: profile.gender,   
           city: profile.city,
           occupation: profile.occupation,
           kycLevel: profile.kycLevel
@@ -397,6 +398,53 @@ router.get('/dashboard', async (req, res) => {
       { $sort: { _id: 1 } }
     ]);
 
+    const genderAggArr = await Profile.aggregate([
+      { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+      { $unwind: '$user' },
+      { $match: { 'user.role': 'borrower' } },
+      {
+        $group: {
+          _id: null,
+          female: { $sum: { $cond: [{ $eq: ['$gender', 'female'] }, 1, 0] } },
+          male:   { $sum: { $cond: [{ $eq: ['$gender', 'male'] }, 1, 0] } },
+          other:  { $sum: { $cond: [
+            { $and: [{ $ne: ['$gender', 'female'] }, { $ne: ['$gender', 'male'] }] }, 1, 0
+          ] } }
+        }
+      },
+      { $project: { _id: 0, female: 1, male: 1, other: 1 } }
+    ]);
+    const genderAgg = genderAggArr[0] || { female: 0, male: 0, other: 0 };
+
+    const occupationsAgg = await Profile.aggregate([
+      { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+      { $unwind: '$user' },
+      { $match: { 'user.role': 'borrower' } },
+      { $match: { occupation: { $ne: null, $ne: '' } } },
+      { $group: { _id: '$occupation', count: { $sum: 1 } } },
+      { $project: { _id: 0, label: '$_id', count: 1 } },
+      { $sort: { count: -1, label: 1 } },
+      { $limit: 20 }
+    ]);
+
+    const locationsAgg = await Profile.aggregate([
+      { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+      { $unwind: '$user' },
+      { $match: { 'user.role': 'borrower' } },
+      { $match: { city: { $ne: null, $ne: '' } } },
+      { $group: { _id: '$city', count: { $sum: 1 } } },
+      { $project: { _id: 0, label: '$_id', count: 1 } },
+      { $sort: { count: -1, label: 1 } },
+      { $limit: 20 }
+    ]);
+
+    const demographics = {
+      total: totalBorrowers,
+      gender: genderAgg,
+      occupations: occupationsAgg,
+      locations: locationsAgg
+    };
+
     res.json({
       metrics: {
         totalBorrowers,
@@ -420,7 +468,8 @@ router.get('/dashboard', async (req, res) => {
           createdAt: share.createdAt
         }))
       },
-      levelDistribution
+      levelDistribution,
+      demographics
     });
   } catch (error) {
     console.error('Dashboard error:', error);
