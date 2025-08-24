@@ -65,8 +65,10 @@ function App() {
                 <>
                   <Route path="/" element={<AdminDashboard />} />
                   <Route path="/admin" element={<AdminDashboard />} />
+                  <Route path="/admin/users" element={<Navigate to="/admin#demographics" replace />} />
                   <Route path="/admin/applications" element={<AdminApplications />} />
                   <Route path="/admin/borrowers/:id" element={<AdminBorrowers />} />
+                  
                   {/* <Route path="/admin/shares" element={<AdminShares />} /> */}
                 </>
               )}

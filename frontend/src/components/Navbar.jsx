@@ -30,6 +30,8 @@ const Navbar = () => {
   const adminNavItems = [
     { path: '/admin', icon: BarChart3, label: 'Dashboard' },
     { path: '/admin/applications', icon: FileText, label: 'Applications' },
+    { path: '/admin#demographics', icon: Users, label: 'Users' },
+
     // { path: '/admin/shares', icon: Share2, label: 'Shares' },
     // { path: '/admin/policy', icon: Settings, label: 'Policy' },
   ]
@@ -55,8 +57,20 @@ const Navbar = () => {
               <Link
                 key={path}
                 to={path}
+                onClick={(e) => {
+                  if (path.includes('#demographics') && location.pathname === '/admin') {
+                    e.preventDefault();
+                    window.history.replaceState(null, '', '/admin#demographics');
+                    setTimeout(() => {
+                      const el = document.getElementById('demographics');
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 100);
+                  }
+                }}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                  location.pathname === path
+                  ((location.pathname + location.hash) === path) || (location.pathname === path)
                     ? 'text-primary-600 bg-primary-50 shadow-md'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:shadow-md'
                 }`}
@@ -94,8 +108,20 @@ const Navbar = () => {
             <Link
               key={path}
               to={path}
+              onClick={(e) => {
+                if (path.includes('#demographics') && location.pathname === '/admin') {
+                  e.preventDefault();
+                  window.history.replaceState(null, '', '/admin#demographics');
+                  setTimeout(() => {
+                    const el = document.getElementById('demographics');
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }, 100);
+                }
+              }}
               className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium transition-colors ${
-                location.pathname === path
+                ((location.pathname + location.hash) === path) || (location.pathname === path)
                   ? 'text-primary-600 bg-primary-50'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}

@@ -25,22 +25,134 @@ const DeltaPill = ({ value }) => {
   )
 }
 
+
 const Skeleton = ({ className = '' }) => (
   <div className={`animate-pulse rounded-md bg-gray-200 ${className}`} />
 )
 
+// --- Lightweight charts (no external libs) ---
+const GenderDonut = ({ female = 0, male = 0, other = 0, size = 120, stroke = 14 }) => {
+  const total = Math.max(female + male + other, 0);
+  const segments = [
+    { label: 'Female', value: female, color: '#B00020' }, 
+    { label: 'Male', value: male, color: '#374151' },    
+    { label: 'Other', value: other, color: '#F59E0B' }, 
+  ].filter(s => s.value > 0);
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  return (
+    <div className="flex items-center gap-4">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+        <g transform={`rotate(-90 ${size/2} ${size/2})`}>
+          {/* Background ring */}
+          <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="#E5E7EB" strokeWidth={stroke} />
+          {segments.map((s) => {
+            const frac = total > 0 ? s.value / total : 0;
+            const len = frac * circumference;
+            const el = (
+              <circle
+                key={s.label}
+                cx={size/2}
+                cy={size/2}
+                r={radius}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={stroke}
+                strokeDasharray={`${len} ${circumference - len}`}
+                strokeDashoffset={-offset}
+                strokeLinecap="butt"
+              />
+            );
+            offset += len;
+            return el;
+          })}
+        </g>
+      </svg>
+      <div className="text-sm">
+        {['Female','Male','Other'].map(lbl => {
+          const color = lbl === 'Female' ? 'bg-red-600' : lbl === 'Male' ? 'bg-gray-700' : 'bg-amber-500';
+          const val = lbl === 'Female' ? female : lbl === 'Male' ? male : other;
+          const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+          return (
+            <div key={lbl} className="flex items-center gap-2 mb-1">
+              <span className={`inline-block w-2.5 h-2.5 rounded ${color}`} />
+              <span className="text-gray-700">{lbl}</span>
+              <span className="ml-auto font-medium text-gray-900">
+                {val.toLocaleString()} <span className="text-gray-500 font-normal">({pct}%)</span>
+              </span>
+            </div>
+          );
+        })}
+        {total === 0 && <p className="text-xs text-gray-500">No gender data yet.</p>}
+      </div>
+    </div>
+  );
+};
+
+const AgeBarChart = ({ bands = [], height = 140 }) => {
+  const max = Math.max(0, ...bands.map(b => b.count || 0));
+  return (
+    <div className="w-full">
+      <div className="flex items-end gap-3 h-[140px]">
+        {bands.map(b => {
+          const h = max > 0 ? (b.count / max) * height : 0;
+          return (
+            <div key={b.label} className="flex flex-col items-center gap-1 flex-1 min-w-[28px]">
+              <div
+                className="w-6 sm:w-7 bg-amber-500/90 hover:bg-amber-600 rounded-md transition"
+                style={{ height: `${h}px` }}
+                title={`${b.label} • ${b.count?.toLocaleString?.() || 0}`}
+              />
+              <div className="text-[10px] text-gray-600">{b.label}</div>
+            </div>
+          );
+        })}
+      </div>
+      {max === 0 && <p className="text-xs text-gray-500 mt-2">No age data yet.</p>}
+    </div>
+  );
+};
+
+const RegionsBarList = ({ items = [], total = 0 }) => {
+  const max = Math.max(0, ...items.map(i => i.count || 0));
+  return (
+    <div>
+      {items.length === 0 ? (
+        <p className="text-xs text-gray-500">No location data yet.</p>
+      ) : items.map((loc) => {
+        const pct = total > 0 ? Math.round((loc.count || 0) / total * 100) : 0;
+        const w = max > 0 ? Math.round((loc.count || 0) / max * 100) : 0;
+        return (
+          <div key={loc.label} className="mb-3">
+            <div className="flex items-center justify-between text-sm mb-1">
+              <span className="text-gray-600">{loc.label}</span>
+              <span className="text-gray-900 font-medium">
+                {(loc.count || 0).toLocaleString()} <span className="text-gray-500 font-normal">({pct}%)</span>
+              </span>
+            </div>
+            <div className="w-full h-2 rounded bg-gray-100 overflow-hidden">
+              <div className="h-2 bg-gray-700" style={{ width: `${w}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const levelColors = [
-  'bg-red-100',  // L0
-  'bg-red-200',  // L1
-  'bg-red-300',  // L2
-  'bg-red-400',  // L3
-  'bg-red-500',  // L4
-  'bg-red-600',  // L5
-  'bg-red-700',  // L6
-  'bg-red-800',  // L7
-  'bg-yellow-500', // L8 (accent)
-  'bg-yellow-600', // L9
-  'bg-gray-700'    // L10
+  'bg-red-100', 
+  'bg-red-200', 
+  'bg-red-300',  
+  'bg-red-400',  
+  'bg-red-500',  
+  'bg-red-600',  
+  'bg-red-700', 
+  'bg-red-800',  
+  'bg-yellow-500', 
+  'bg-yellow-600',
+  'bg-gray-700'   
 ]
 
 const AdminDashboard = () => {
@@ -121,6 +233,25 @@ const AdminDashboard = () => {
   }
 
   const { metrics, recentActivity, levelDistribution } = dashboard
+
+  // Demographics safe read and totals
+  const demographics = dashboard?.demographics || {
+    gender: { female: 0, male: 0, other: 0 },
+    ageBands: [
+      { label: '18–24', count: 0 },
+      { label: '25–34', count: 0 },
+      { label: '35–44', count: 0 },
+      { label: '45–54', count: 0 },
+      { label: '55+', count: 0 },
+    ],
+    locations: []
+  }
+  const totalDemBorrowers = (demographics?.total ?? null) 
+    ?? (metrics?.totalBorrowers ?? (Array.isArray(levelDistribution) ? levelDistribution.reduce((a, d) => a + (d?.count || 0), 0) : 0));
+  const genderTotal = Object.values(demographics.gender || {}).reduce((a, n) => a + (n || 0), 0) || totalDemBorrowers || 0;
+  const topLocations = (demographics.locations || [])
+    .sort((a, b) => (b.count || 0) - (a.count || 0))
+    .slice(0, 5);
 
   const totalBorrowers = metrics?.totalBorrowers ?? levelDistribution.reduce((acc, d) => acc + (d?.count || 0), 0)
 
@@ -229,6 +360,41 @@ const AdminDashboard = () => {
               </div>
             )
           })}
+        </div>
+      </div>
+
+      {/* Demographics */}
+      <div id="demographics" className="card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <BarChart3 className="text-red-600 mr-2" size={20} />
+            <h2 className="text-xl font-semibold text-gray-900">Borrower Demographics</h2>
+          </div>
+          {totalDemBorrowers ? (
+            <span className="text-xs text-gray-500">{totalDemBorrowers.toLocaleString()} total</span>
+          ) : null}
+        </div>
+        <div className="h-px bg-gray-100 mb-4" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Gender donut */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Gender</h3>
+            <GenderDonut
+              female={demographics.gender?.female || 0}
+              male={demographics.gender?.male || 0}
+              other={demographics.gender?.other || 0}
+            />
+          </div>
+          {/* Age vertical bars */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Age</h3>
+            <AgeBarChart bands={demographics.ageBands || []} />
+          </div>
+          {/* Top regions horizontal list */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Top Regions / Provinces</h3>
+            <RegionsBarList items={topLocations} total={totalDemBorrowers} />
+          </div>
         </div>
       </div>
 
