@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const borrowerRoutes = require('./routes/borrower');
 const adminRoutes = require('./routes/admin');
 const rpRoutes = require('./routes/rp');
+const walletRoutes = require('./routes/wallet');
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use('/me', borrowerRoutes);
 app.use('/loans', borrowerRoutes);
 app.use('/admin', adminRoutes);
 app.use('/rp', rpRoutes);
+app.use('/wallet', walletRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

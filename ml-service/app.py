@@ -73,6 +73,16 @@ class ChampionScorer:
     def calculate_pd(self, features):
         """Calculate probability of default using weighted features"""
         
+        # Special handling for new borrowers (Level 0, no history)
+        if features['level'] == 0 and features['total_loans'] == 0:
+            # New borrowers get favorable treatment for small amounts
+            if features['amount_to_cap_ratio'] <= 0.6:
+                return 0.15  # Low risk for conservative amounts
+            elif features['amount_to_cap_ratio'] <= 0.8:
+                return 0.25  # Medium risk
+            else:
+                return 0.35  # Higher risk but still approvable
+        
         # Base PD
         base_pd = 0.15
         
@@ -95,7 +105,13 @@ class ChampionScorer:
         reasons = []
         
         if decision == 'approve':
-            if features['level'] >= 3:
+            if features['level'] == 0 and features['total_loans'] == 0:
+                reasons.append('Welcome! First loan approved for new borrower')
+                if features['amount_to_cap_ratio'] <= 0.6:
+                    reasons.append('Conservative amount shows responsible borrowing')
+                if features['kyc_level'] == 1:
+                    reasons.append('Verified identity provides additional confidence')
+            elif features['level'] >= 3:
                 reasons.append('Strong borrower level (Level 3+)')
             if features['on_time_rate'] >= 0.9:
                 reasons.append('Excellent repayment history (90%+ on-time)')
@@ -103,17 +119,17 @@ class ChampionScorer:
                 reasons.append('Consistent payment streak')
             if features['amount_to_cap_ratio'] <= 0.7:
                 reasons.append('Conservative amount relative to limit')
-            if pd <= 0.15:
-                reasons.append('Low risk assessment')
+            if pd <= 0.25:
+                reasons.append('Low to medium risk assessment')
                 
         elif decision == 'decline':
             if features['amount_to_cap_ratio'] > 0.9:
                 reasons.append('Amount too close to current limit')
-            if features['on_time_rate'] < 0.7:
+            if features['on_time_rate'] < 0.5 and features['total_loans'] > 0:
                 reasons.append('Inconsistent repayment history')
-            if features['level'] == 0 and features['total_loans'] == 0:
-                reasons.append('New borrower - start with smaller amount')
-            if pd > 0.4:
+            if features['level'] == 0 and features['total_loans'] == 0 and features['amount_to_cap_ratio'] > 0.9:
+                reasons.append('New borrower - please start with smaller amount')
+            if pd > 0.5:
                 reasons.append('High risk assessment')
                 
         elif decision == 'counter':
@@ -132,7 +148,10 @@ class ChampionScorer:
     def generate_counterfactual(self, features, decision):
         """Generate counterfactual explanation"""
         if decision == 'decline':
-            if features['level'] < 5:
+            if features['level'] == 0 and features['total_loans'] == 0:
+                safe_amount = int(features['amount'] * 0.6)
+                return f"As a new borrower, try applying for ₱{safe_amount} to get started and build your credit history"
+            elif features['level'] < 5:
                 next_level = features['level'] + 1
                 return f"Reach Level {next_level} with {next_level} consecutive on-time payments to unlock higher limits"
             elif features['on_time_rate'] < 0.8:
@@ -140,6 +159,8 @@ class ChampionScorer:
             elif features['amount_to_cap_ratio'] > 0.9:
                 safe_amount = int(features['amount'] * 0.7)
                 return f"Consider applying for ₱{safe_amount} for higher approval probability"
+        elif decision == 'counter':
+            return "Counter-offer provided with adjusted terms for better approval odds"
         
         return None
     
@@ -150,10 +171,17 @@ class ChampionScorer:
         if features['amount_to_cap_ratio'] > 1.0:
             return 'decline'
         
-        # PD-based decision thresholds
-        if pd <= 0.20:
+        # Special approval logic for new borrowers
+        if features['level'] == 0 and features['total_loans'] == 0:
+            if features['amount_to_cap_ratio'] <= 0.8:
+                return 'approve'  # Approve new borrowers for reasonable amounts
+            else:
+                return 'counter'  # Counter-offer for high amounts
+        
+        # PD-based decision thresholds for existing borrowers
+        if pd <= 0.25:  # More lenient threshold
             return 'approve'
-        elif pd <= 0.35:
+        elif pd <= 0.40:  # Extended counter-offer range
             # Counter-offer logic
             if features['amount_to_cap_ratio'] > 0.8:
                 return 'counter'
@@ -164,13 +192,21 @@ class ChampionScorer:
     
     def generate_counter_offer(self, features):
         """Generate counter-offer terms"""
-        if features['amount_to_cap_ratio'] > 0.8:
-            # Reduce amount to 70% of cap
-            level_caps = {0: 500, 1: 750, 2: 1000, 3: 1250, 4: 1500, 
-                         5: 2000, 6: 2500, 7: 3000, 8: 3500, 9: 4000, 10: 5000}
-            unlocked_cap = level_caps.get(features['level'], 500)
+        level_caps = {0: 500, 1: 750, 2: 1000, 3: 1250, 4: 1500, 
+                     5: 2000, 6: 2500, 7: 3000, 8: 3500, 9: 4000, 10: 5000}
+        unlocked_cap = level_caps.get(features['level'], 500)
+        
+        if features['level'] == 0 and features['total_loans'] == 0:
+            # New borrowers get 60% of cap as counter-offer
+            counter_amount = int(unlocked_cap * 0.6)
+            return {
+                'amount': counter_amount,
+                'termWeeks': min(features['term_weeks'], 8),  # Reasonable term
+                'reason': 'Welcome offer for new borrower - build your credit history!'
+            }
+        elif features['amount_to_cap_ratio'] > 0.8:
+            # Existing borrowers get 70% of cap
             counter_amount = int(unlocked_cap * 0.7)
-            
             return {
                 'amount': counter_amount,
                 'termWeeks': min(features['term_weeks'], 6),  # Shorter term

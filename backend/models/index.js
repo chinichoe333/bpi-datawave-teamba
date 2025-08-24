@@ -150,10 +150,68 @@ const shareAccessLogSchema = new mongoose.Schema({
   scopesAccessed: [{ type: String }]
 });
 
+// Wallet Schema
+const walletSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+  balance: { type: Number, default: 0, min: 0 },
+  totalDeposited: { type: Number, default: 0 },
+  totalWithdrawn: { type: Number, default: 0 },
+  totalLoanPayments: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+// Wallet Transaction Schema
+const walletTransactionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  walletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Wallet', required: true },
+  type: { 
+    type: String, 
+    enum: ['deposit', 'withdrawal', 'loan_payment', 'loan_disbursement', 'fee', 'refund'],
+    required: true 
+  },
+  amount: { type: Number, required: true },
+  balanceBefore: { type: Number, required: true },
+  balanceAfter: { type: Number, required: true },
+  description: { type: String, required: true },
+  reference: { type: String }, // External reference (e.g., bank transaction ID)
+  relatedLoanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Loan' },
+  relatedRepaymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Repayment' },
+  status: { 
+    type: String, 
+    enum: ['pending', 'completed', 'failed', 'cancelled'],
+    default: 'completed'
+  },
+  metadata: { type: mongoose.Schema.Types.Mixed }, // Additional data
+  createdAt: { type: Date, default: Date.now }
+});
+
+// Loan Payment Schema (Enhanced Repayment)
+const loanPaymentSchema = new mongoose.Schema({
+  loanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Loan', required: true },
+  repaymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Repayment', required: true },
+  walletTransactionId: { type: mongoose.Schema.Types.ObjectId, ref: 'WalletTransaction', required: true },
+  amount: { type: Number, required: true },
+  paymentMethod: { 
+    type: String, 
+    enum: ['wallet', 'bank_transfer', 'cash', 'card'],
+    default: 'wallet'
+  },
+  paidAt: { type: Date, default: Date.now },
+  isEarlyPayment: { type: Boolean, default: false },
+  levelProgressAwarded: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
+});
+
 // Compound indexes
 loanSchema.index({ userId: 1, status: 1 });
 consentSchema.index({ userId: 1, key: 1 });
 repaymentSchema.index({ loanId: 1, dueDate: 1 });
+
+// Compound indexes
+walletTransactionSchema.index({ userId: 1, createdAt: -1 });
+walletTransactionSchema.index({ walletId: 1, type: 1 });
+loanPaymentSchema.index({ loanId: 1, paidAt: -1 });
 
 // Models
 const User = mongoose.model('User', userSchema);
@@ -168,6 +226,9 @@ const DecisionLedger = mongoose.model('DecisionLedger', decisionLedgerSchema);
 const DigitalIdCard = mongoose.model('DigitalIdCard', digitalIdCardSchema);
 const ShareToken = mongoose.model('ShareToken', shareTokenSchema);
 const ShareAccessLog = mongoose.model('ShareAccessLog', shareAccessLogSchema);
+const Wallet = mongoose.model('Wallet', walletSchema);
+const WalletTransaction = mongoose.model('WalletTransaction', walletTransactionSchema);
+const LoanPayment = mongoose.model('LoanPayment', loanPaymentSchema);
 
 module.exports = {
   User,
@@ -181,5 +242,8 @@ module.exports = {
   DecisionLedger,
   DigitalIdCard,
   ShareToken,
-  ShareAccessLog
+  ShareAccessLog,
+  Wallet,
+  WalletTransaction,
+  LoanPayment
 };

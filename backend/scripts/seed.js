@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { 
   User, Profile, Level, DigitalIdCard, Loan, 
-  DecisionLedger, RiskScore, PolicyVersion 
+  DecisionLedger, RiskScore, PolicyVersion, Wallet, WalletTransaction, Repayment
 } = require('../models');
 const { generateLiwaywaiId, getLevelCaps } = require('../utils/helpers');
 
@@ -24,7 +24,10 @@ const seedData = async () => {
       Loan.deleteMany({}),
       DecisionLedger.deleteMany({}),
       RiskScore.deleteMany({}),
-      PolicyVersion.deleteMany({})
+      PolicyVersion.deleteMany({}),
+      Wallet.deleteMany({}),
+      WalletTransaction.deleteMany({}),
+      Repayment.deleteMany({})
     ]);
     console.log('🧹 Cleared existing data');
 
@@ -153,6 +156,29 @@ const seedData = async () => {
       });
       await digitalId.save();
 
+      // Create wallet with initial balance
+      const initialBalance = borrowerData.level * 1000 + 5000; // Higher level = more initial funds
+      const wallet = new Wallet({
+        userId: user._id,
+        balance: initialBalance,
+        totalDeposited: initialBalance
+      });
+      await wallet.save();
+
+      // Create initial deposit transaction
+      const depositTransaction = new WalletTransaction({
+        userId: user._id,
+        walletId: wallet._id,
+        type: 'deposit',
+        amount: initialBalance,
+        balanceBefore: 0,
+        balanceAfter: initialBalance,
+        description: 'Initial wallet setup - Demo funds',
+        reference: `DEMO-INIT-${user._id}`,
+        status: 'completed'
+      });
+      await depositTransaction.save();
+
       // Create sample loans for higher level users
       if (borrowerData.level > 0) {
         const loanCount = Math.min(borrowerData.totalLoans, 3); // Create up to 3 sample loans
@@ -206,6 +232,51 @@ const seedData = async () => {
           // Link decision to loan
           loan.decisionId = decisionLedger._id;
           await loan.save();
+
+          // Create repayments for active/completed loans
+          if (status === 'active' || status === 'completed') {
+            const weeklyAmount = Math.round((loanAmount / loan.termWeeks) * 100) / 100;
+            
+            for (let week = 1; week <= loan.termWeeks; week++) {
+              const dueDate = new Date(loan.approvedAt);
+              dueDate.setDate(dueDate.getDate() + (week * 7));
+              
+              const amount = week === loan.termWeeks 
+                ? loanAmount - (weeklyAmount * (loan.termWeeks - 1))
+                : weeklyAmount;
+              
+              const repaymentStatus = status === 'completed' ? 'paid' : 
+                (week <= Math.floor(loan.termWeeks * 0.6) ? 'paid' : 'pending');
+              
+              const repayment = new Repayment({
+                loanId: loan._id,
+                dueDate,
+                amount: Math.max(amount, 0.01),
+                status: repaymentStatus,
+                paidAt: repaymentStatus === 'paid' ? new Date(dueDate.getTime() - 24 * 60 * 60 * 1000) : null
+              });
+              
+              await repayment.save();
+
+              // Create payment transaction if paid
+              if (repaymentStatus === 'paid') {
+                const paymentTransaction = new WalletTransaction({
+                  userId: user._id,
+                  walletId: wallet._id,
+                  type: 'loan_payment',
+                  amount: repayment.amount,
+                  balanceBefore: wallet.balance + repayment.amount,
+                  balanceAfter: wallet.balance,
+                  description: `Loan payment for ₱${loanAmount} loan`,
+                  relatedLoanId: loan._id,
+                  relatedRepaymentId: repayment._id,
+                  status: 'completed',
+                  createdAt: repayment.paidAt
+                });
+                await paymentTransaction.save();
+              }
+            }
+          }
         }
       }
 

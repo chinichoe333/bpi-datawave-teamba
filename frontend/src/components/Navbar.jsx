@@ -8,7 +8,10 @@ import {
   Settings, 
   LogOut,
   Users,
-  BarChart3
+  BarChart3,
+  Wallet,
+  DollarSign,
+  User
 } from 'lucide-react'
 
 const Navbar = () => {
@@ -17,7 +20,9 @@ const Navbar = () => {
 
   const borrowerNavItems = [
     { path: '/', icon: Home, label: 'Dashboard' },
-    { path: '/digital-id', icon: CreditCard, label: 'Digital ID' },
+    { path: '/wallet', icon: Wallet, label: 'Wallet' },
+    { path: '/loans', icon: DollarSign, label: 'Loans' },
+    { path: '/digital-id', icon: User, label: 'Digital ID' },
     { path: '/apply', icon: FileText, label: 'Apply' },
     { path: '/shares', icon: Share2, label: 'Shares' },
   ]

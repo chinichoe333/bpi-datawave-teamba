@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { borrowerAPI } from '../utils/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../components/LoadingSpinner'
+import LoanPayments from '../components/LoanPayments'
 import { 
   CreditCard, 
   TrendingUp, 
@@ -186,10 +187,15 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* Loan Payments Section */}
+      <div className="animate-slide-up" style={{ animationDelay: '0.4s' }}>
+        <LoanPayments />
+      </div>
+
       {/* Quick Actions */}
-      <div className="card p-6">
+      <div className="card p-6 animate-slide-up" style={{ animationDelay: '0.6s' }}>
         <h3 className="font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-4 gap-4">
           <Link 
             to="/digital-id" 
             className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
@@ -202,23 +208,34 @@ const Dashboard = () => {
           </Link>
           
           <Link 
+            to="/wallet" 
+            className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
+          >
+            <div className="flex items-center space-x-3">
+              <CreditCard className="text-primary-600" size={20} />
+              <span className="font-medium text-gray-900">Digital Wallet</span>
+            </div>
+            <ArrowRight size={16} className="text-gray-400" />
+          </Link>
+          
+          <Link 
+            to="/loans" 
+            className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
+          >
+            <div className="flex items-center space-x-3">
+              <Clock className="text-primary-600" size={20} />
+              <span className="font-medium text-gray-900">Loan History</span>
+            </div>
+            <ArrowRight size={16} className="text-gray-400" />
+          </Link>
+          
+          <Link 
             to="/apply" 
             className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
           >
             <div className="flex items-center space-x-3">
               <Plus className="text-primary-600" size={20} />
               <span className="font-medium text-gray-900">Apply for Loan</span>
-            </div>
-            <ArrowRight size={16} className="text-gray-400" />
-          </Link>
-          
-          <Link 
-            to="/shares" 
-            className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
-          >
-            <div className="flex items-center space-x-3">
-              <TrendingUp className="text-primary-600" size={20} />
-              <span className="font-medium text-gray-900">Share History</span>
             </div>
             <ArrowRight size={16} className="text-gray-400" />
           </Link>

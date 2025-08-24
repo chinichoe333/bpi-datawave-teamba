@@ -49,7 +49,9 @@ export const borrowerAPI = {
   revokeShare: (id) => api.post(`/me/digital-id/share/${id}/revoke`),
   applyLoan: (data) => api.post('/loans/apply', data),
   getLoan: (id) => api.get(`/loans/${id}`),
+  getLoanHistory: (params) => api.get('/loans', { params }),
   markPaid: (id) => api.post(`/loans/${id}/repayments/mark-paid`),
+  getStarterLoan: () => api.post('/loans/starter'),
 }
 
 export const adminAPI = {
@@ -60,6 +62,16 @@ export const adminAPI = {
   getShares: (params) => api.get('/admin/shares', { params }),
   updatePolicy: (data) => api.put('/admin/policy', data),
   getPolicy: () => api.get('/admin/policy'),
+}
+
+export const walletAPI = {
+  getWallet: () => api.get('/wallet'),
+  addFunds: (amount, description) => api.post('/wallet/add-funds', { amount, description }),
+  withdraw: (amount, description) => api.post('/wallet/withdraw', { amount, description }),
+  payLoan: (repaymentId, amount) => api.post('/wallet/pay-loan', { repaymentId, amount }),
+  simulateFunds: () => api.post('/wallet/simulate-funds'),
+  simulateLevelUp: () => api.post('/wallet/simulate-level-up'),
+  getTransactions: (limit, offset) => api.get('/wallet/transactions', { params: { limit, offset } }),
 }
 
 export const rpAPI = {

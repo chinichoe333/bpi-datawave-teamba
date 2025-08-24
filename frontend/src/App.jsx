@@ -11,7 +11,9 @@ import Dashboard from './pages/Dashboard'
 import DigitalId from './pages/DigitalId'
 import LoanApplication from './pages/LoanApplication'
 import LoanDetails from './pages/LoanDetails'
+import Loans from './pages/Loans'
 import ShareHistory from './pages/ShareHistory'
+import Wallet from './pages/Wallet'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminApplications from './pages/admin/AdminApplications'
 import AdminBorrowers from './pages/admin/AdminBorrowers'
@@ -51,8 +53,10 @@ function App() {
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/digital-id" element={<DigitalId />} />
                   <Route path="/apply" element={<LoanApplication />} />
+                  <Route path="/loans" element={<Loans />} />
                   <Route path="/loans/:id" element={<LoanDetails />} />
                   <Route path="/shares" element={<ShareHistory />} />
+                  <Route path="/wallet" element={<Wallet />} />
                 </>
               )}
               

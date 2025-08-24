@@ -9,7 +9,93 @@ const {
   User, Profile, Loan, Level, DigitalIdCard, ShareToken, 
   DecisionLedger, RiskScore, Repayment, ShareAccessLog 
 } = require('../models');
+const WalletService = require('../services/walletService');
 const { authenticateToken, requireBorrower } = require('../middleware/auth');
+
+// Helper function to create repayment schedule
+async function createRepaymentSchedule(loan) {
+  const weeklyAmount = Math.round((loan.amount / loan.termWeeks) * 100) / 100;
+  const repayments = [];
+  
+  for (let week = 1; week <= loan.termWeeks; week++) {
+    const dueDate = new Date(loan.approvedAt);
+    dueDate.setDate(dueDate.getDate() + (week * 7));
+    
+    // Last payment gets any rounding difference
+    const amount = week === loan.termWeeks 
+      ? loan.amount - (weeklyAmount * (loan.termWeeks - 1))
+      : weeklyAmount;
+    
+    const repayment = new Repayment({
+      loanId: loan._id,
+      dueDate,
+      amount: Math.max(amount, 0.01), // Ensure positive amount
+      status: 'pending'
+    });
+    
+    repayments.push(repayment);
+  }
+  
+  await Repayment.insertMany(repayments);
+  return repayments;
+}
+
+// Helper function to create starter loan for new users
+async function createStarterLoan(userId, amount = 300) {
+  const level = await Level.findOne({ userId });
+  if (!level || level.level > 0 || level.totalLoans > 0) {
+    throw new Error('Starter loan only available for new borrowers');
+  }
+
+  // Create a simple approved loan
+  const loan = new Loan({
+    userId,
+    amount,
+    termWeeks: 4,
+    purpose: 'Getting started with LiwaywAI',
+    status: 'approved',
+    levelAtApply: 0,
+    approvedAt: new Date()
+  });
+  await loan.save();
+
+  // Create decision ledger
+  const decisionLedger = new DecisionLedger({
+    loanId: loan._id,
+    inputsJSON: JSON.stringify({ amount, termWeeks: 4, level: 0, newBorrower: true }),
+    modelVersion: 'starter-v1.0',
+    policyVersion: 'v1.0.0',
+    decision: 'approve',
+    reasons: ['Welcome loan for new borrower', 'Conservative starter amount'],
+    decidedAt: new Date()
+  });
+  await decisionLedger.save();
+
+  // Create risk score
+  const riskScore = new RiskScore({
+    loanId: loan._id,
+    pd: 0.15,
+    reasons: ['Welcome loan for new borrower', 'Conservative starter amount'],
+    counterfactualHint: null,
+    modelVersion: 'starter-v1.0'
+  });
+  await riskScore.save();
+
+  // Link decision to loan
+  loan.decisionId = decisionLedger._id;
+
+  // Disburse to wallet and create repayments
+  try {
+    await WalletService.disburseLoan(userId, loan._id, loan.amount);
+    loan.status = 'active';
+    await createRepaymentSchedule(loan);
+  } catch (error) {
+    console.error('Starter loan disbursement error:', error);
+  }
+
+  await loan.save();
+  return loan;
+}
 const { 
   getLevelCaps, 
   generateReasonCodes, 
@@ -317,6 +403,18 @@ router.post('/apply', requireBorrower, async (req, res) => {
       if (decision === 'approve') {
         loan.status = 'approved';
         loan.approvedAt = new Date();
+        
+        // Disburse loan to wallet
+        try {
+          await WalletService.disburseLoan(req.user._id, loan._id, loan.amount);
+          loan.status = 'active'; // Mark as active after disbursement
+          
+          // Create repayment schedule
+          await createRepaymentSchedule(loan);
+        } catch (walletError) {
+          console.error('Wallet disbursement error:', walletError);
+          // Keep loan as approved but not active
+        }
       } else if (decision === 'counter' && counter_offer) {
         loan.status = 'counter_offered';
         loan.counterOffer = counter_offer;
@@ -359,7 +457,24 @@ router.post('/apply', requireBorrower, async (req, res) => {
       await decisionLedger.save();
 
       loan.decisionId = decisionLedger._id;
-      loan.status = fallbackDecision === 'approve' ? 'approved' : 'declined';
+      if (fallbackDecision === 'approve') {
+        loan.status = 'approved';
+        loan.approvedAt = new Date();
+        
+        // Disburse loan to wallet
+        try {
+          await WalletService.disburseLoan(req.user._id, loan._id, loan.amount);
+          loan.status = 'active'; // Mark as active after disbursement
+          
+          // Create repayment schedule
+          await createRepaymentSchedule(loan);
+        } catch (walletError) {
+          console.error('Wallet disbursement error:', walletError);
+          // Keep loan as approved but not active
+        }
+      } else {
+        loan.status = 'declined';
+      }
       await loan.save();
 
       res.json({
@@ -375,6 +490,89 @@ router.post('/apply', requireBorrower, async (req, res) => {
   } catch (error) {
     console.error('Loan application error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /loans - Get loan history
+router.get('/', requireBorrower, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const offset = parseInt(req.query.offset) || 0;
+    const status = req.query.status; // Optional status filter
+
+    // Build query
+    const query = { userId: req.user._id };
+    if (status && ['applied', 'approved', 'active', 'completed', 'declined', 'counter_offered'].includes(status)) {
+      query.status = status;
+    }
+
+    const loans = await Loan.find(query)
+      .populate('decisionId')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip(offset);
+
+    const totalCount = await Loan.countDocuments(query);
+
+    // Get repayment info for each loan
+    const loansWithDetails = await Promise.all(loans.map(async (loan) => {
+      const riskScore = await RiskScore.findOne({ loanId: loan._id });
+      const repayments = await Repayment.find({ loanId: loan._id }).sort({ dueDate: 1 });
+      
+      const totalRepayments = repayments.length;
+      const paidRepayments = repayments.filter(r => r.status === 'paid').length;
+      const overdueRepayments = repayments.filter(r => 
+        r.status === 'pending' && new Date(r.dueDate) < new Date()
+      ).length;
+
+      return {
+        id: loan._id,
+        amount: loan.amount,
+        termWeeks: loan.termWeeks,
+        purpose: loan.purpose,
+        status: loan.status,
+        levelAtApply: loan.levelAtApply,
+        counterOffer: loan.counterOffer,
+        createdAt: loan.createdAt,
+        approvedAt: loan.approvedAt,
+        completedAt: loan.completedAt,
+        decision: loan.decisionId ? {
+          decision: loan.decisionId.decision,
+          reasons: loan.decisionId.reasons,
+          decidedAt: loan.decisionId.decidedAt
+        } : null,
+        riskScore: riskScore ? {
+          pd: riskScore.pd,
+          pdBand: getPdBand(riskScore.pd)
+        } : null,
+        repaymentSummary: {
+          total: totalRepayments,
+          paid: paidRepayments,
+          pending: totalRepayments - paidRepayments - overdueRepayments,
+          overdue: overdueRepayments,
+          progress: totalRepayments > 0 ? Math.round((paidRepayments / totalRepayments) * 100) : 0
+        }
+      };
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        loans: loansWithDetails,
+        pagination: {
+          total: totalCount,
+          limit,
+          offset,
+          hasMore: offset + limit < totalCount
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Loan history error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch loan history' 
+    });
   }
 });
 
@@ -482,6 +680,55 @@ router.post('/:id/repayments/mark-paid', requireBorrower, async (req, res) => {
   } catch (error) {
     console.error('Mark paid error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /loans/starter - Create starter loan for new borrowers
+router.post('/starter', requireBorrower, async (req, res) => {
+  try {
+    const level = await Level.findOne({ userId: req.user._id });
+    
+    if (!level) {
+      return res.status(404).json({ error: 'Level record not found' });
+    }
+
+    if (level.level > 0 || level.totalLoans > 0) {
+      return res.status(400).json({ 
+        error: 'Starter loan only available for new borrowers with no loan history' 
+      });
+    }
+
+    // Check if user already has active loans
+    const existingLoans = await Loan.find({ 
+      userId: req.user._id, 
+      status: { $in: ['applied', 'approved', 'active'] }
+    });
+
+    if (existingLoans.length > 0) {
+      return res.status(400).json({ 
+        error: 'You already have an active loan application or loan' 
+      });
+    }
+
+    const starterLoan = await createStarterLoan(req.user._id, 300);
+    
+    res.json({
+      success: true,
+      message: 'Welcome to LiwaywAI! Your starter loan has been approved.',
+      data: {
+        loanId: starterLoan._id,
+        amount: starterLoan.amount,
+        termWeeks: starterLoan.termWeeks,
+        status: starterLoan.status,
+        purpose: starterLoan.purpose
+      }
+    });
+
+  } catch (error) {
+    console.error('Starter loan error:', error);
+    res.status(500).json({ 
+      error: error.message || 'Failed to create starter loan' 
+    });
   }
 });
 
